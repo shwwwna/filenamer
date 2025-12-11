@@ -125,36 +125,51 @@
         const trailingDotsSpaces = /[.\s]+$/;
         const MAX_FILENAME = 255;
 
-        function sanitizeFilename(input) {
-          if (input == null) return "";
-          let s = String(input).normalize("NFKC").trim();
+function sanitizeFilename(input) {
+  if (!input) return "untitled";
 
-          // Replace forbidden characters with spaces
-          s = s.replace(forbiddenChars, " ");
+  let s = String(input)
+    .normalize("NFKC");
 
-          // Collapse multiple spaces
-          s = s.replace(/\s{2,}/g, " ").replace(trailingDotsSpaces, "");
+  // Remove zero-width / invisible chars
+  s = s.replace(/[\u200B-\u200F\uFEFF\u2060]/g, "");
 
-          if (s === "") s = " ";
+  // Remove forbidden for Windows + Obsidian
+  s = s.replace(/[<>:"/\\|?*\u0000-\u001F]/g, "");
 
-          const lastDot = s.lastIndexOf(".");
-          let name = s,
-            ext = "";
-          if (lastDot > 0) {
-            name = s.slice(0, lastDot);
-            ext = s.slice(lastDot);
-          }
+  // Replace Unicode lookalike slashes/quotes
+  s = s
+    .replace(/[⁄∕⌿⧵⧹]/g, "-")
+    .replace(/[“”„‟]/g, "'")
+    .replace(/[’`]/g, "'");
 
-          if (reservedRegex.test(s)) s = " " + s;
+  // Remove emojis (extended plane)
+  s = s.replace(/[\u{1F000}-\u{10FFFF}]/gu, "");
 
-          const maxNameLen = MAX_FILENAME - ext.length;
-          if (name.length > maxNameLen)
-            name = [...name].slice(0, maxNameLen).join("");
-          s = name + ext;
+  // Collapse spaces
+  s = s.replace(/\s+/g, " ").trim();
 
-          if (/^[.]+$/.test(s)) s = " " + s;
-          return s;
-        }
+  // Remove trailing dots/spaces
+  s = s.replace(/[.\s]+$/g, "");
+
+  if (!s) s = "untitled";
+
+  // Prevent reserved names
+  const reserved = /^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])$/i;
+  if (reserved.test(s)) s = "_" + s;
+
+  // Ensure Obsidian-safe extension handling
+  if (s.toLowerCase().endsWith(".md"))
+    s = s.slice(0, -3).replace(/[.\s]+$/g, "") + ".md";
+
+  // Length guard
+  const MAX = 200;
+  if (s.length > MAX)
+    s = s.slice(0, MAX).trim();
+
+  return s;
+}
+
 
         const input = document.getElementById("input");
         const output = document.getElementById("output");
